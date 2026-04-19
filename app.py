@@ -119,7 +119,7 @@ def load_model(model_url, device):
                     st.warning(f"Unexpected keys: {unexpected_keys[:5]}..." if len(unexpected_keys) > 5 else f"Unexpected keys: {unexpected_keys}")
                 
                 model.eval()
-                st.success("✅ Model loaded successfully!")
+                st.success(" Model loaded successfully!")
                 return model
             else:
                 st.error(f"Failed to download model. Status: {response.status_code}")
@@ -161,7 +161,7 @@ def generate_photo(model, sketch_tensor, device):
 # ── Streamlit UI ─────────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="Pix2Pix: Doodle to Real Image",
-    page_icon="🎨",
+    page_icon="",
     layout="wide"
 )
 
@@ -196,24 +196,24 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Header
-st.markdown('<div class="main-header">🎨 Pix2Pix: Doodle to Real Image</div>', unsafe_allow_html=True)
+st.markdown('<div class="main-header"> Pix2Pix: Doodle to Real Image</div>', unsafe_allow_html=True)
 st.markdown('<div class="sub-header">Transform your sketches and doodles into realistic images using GANs</div>', unsafe_allow_html=True)
 
 # Sidebar
 with st.sidebar:
-    st.markdown("## 📋 Instructions")
+    st.markdown("##  Instructions")
     st.markdown("""
     1. **Upload** a sketch/doodle image
     2. **Click** the 'Generate' button
     3. **View** the AI-generated realistic image
     
-    ### 💡 Tips:
+    ###  Tips:
     - Use simple sketches with clear outlines
     - Best results with face sketches or anime-style drawings
     - Image will be resized to 256×256 pixels
     - Upload PNG, JPG, or JPEG files
     
-    ### 🎯 Model Info:
+    ###  Model Info:
     - Architecture: U-Net Generator with Skip Connections
     - Training: Pix2Pix GAN (Adversarial + L1 Loss)
     - Dataset: CUHK Face Sketch + Anime Sketch-Color pairs
@@ -221,14 +221,14 @@ with st.sidebar:
     """)
     
     st.markdown("---")
-    st.markdown("Made with ❤️ using Streamlit & PyTorch")
+    st.markdown("Made with  using Streamlit & PyTorch")
 
 # Main content area
 col1, col2 = st.columns(2)
 
 # Device setup
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-st.info(f"🖥️ Running on: {'GPU' if torch.cuda.is_available() else 'CPU'}")
+st.info(f" Running on: {'GPU' if torch.cuda.is_available() else 'CPU'}")
 
 # Model URLs
 G_MODEL_URL = "https://huggingface.co/aneelaBashir22f3414/pix2pix_doodle_to_real_image/resolve/main/p2p_G_ep50.pth"
@@ -241,7 +241,7 @@ if model is None:
 
 # Input section
 with col1:
-    st.markdown("### ✏️ Input Sketch")
+    st.markdown("###  Input Sketch")
     uploaded_file = st.file_uploader(
         "Choose a sketch image...", 
         type=['png', 'jpg', 'jpeg', 'bmp', 'webp'],
@@ -253,18 +253,18 @@ with col1:
         st.image(input_image, caption="Uploaded Sketch", use_container_width=True)
         
         # Display preprocessing info
-        with st.expander("📐 Image Info"):
+        with st.expander(" Image Info"):
             st.write(f"Original Size: {input_image.size}")
             st.write(f"Mode: {input_image.mode}")
             st.write("Will be resized to 256×256 for the model")
 
 # Output section
 with col2:
-    st.markdown("### 🖼️ Generated Image")
+    st.markdown("###  Generated Image")
     
     if uploaded_file is not None:
-        if st.button("🚀 Generate Realistic Image", type="primary", use_container_width=True):
-            with st.spinner("🧠 Processing your sketch... This may take a few seconds."):
+        if st.button(" Generate Realistic Image", type="primary", use_container_width=True):
+            with st.spinner(" Processing your sketch... This may take a few seconds."):
                 try:
                     # Preprocess
                     input_tensor = preprocess_image(input_image)
@@ -284,18 +284,18 @@ with col2:
                     byte_im = buf.getvalue()
                     
                     st.download_button(
-                        label="📥 Download Result",
+                        label=" Download Result",
                         data=byte_im,
                         file_name="generated_image.png",
                         mime="image/png",
                         use_container_width=True
                     )
                     
-                    st.success("✨ Generation completed successfully!")
+                    st.success(" Generation completed successfully!")
                     
                     # Show comparison
                     st.markdown("---")
-                    st.markdown("### 🔍 Before vs After")
+                    st.markdown("###  Before vs After")
                     comp_col1, comp_col2 = st.columns(2)
                     with comp_col1:
                         st.markdown("**Original Sketch**")
@@ -307,7 +307,7 @@ with col2:
                 except Exception as e:
                     st.error(f"Error during generation: {str(e)}")
     else:
-        st.info("👈 Upload a sketch to get started!")
+        st.info(" Upload a sketch to get started!")
         # Placeholder
         placeholder = np.zeros((256, 256, 3), dtype=np.uint8)
         placeholder[:] = [240, 240, 240]
