@@ -6,6 +6,8 @@ from PIL import Image
 import requests
 from io import BytesIO
 import matplotlib.pyplot as plt
+import warnings
+warnings.filterwarnings('ignore')
 
 # ── Model Definitions (same architecture as training) ─────────────────────────
 class UNetDown(nn.Module):
@@ -77,6 +79,18 @@ class UNetGenerator(nn.Module):
         return self.final(u7)
 
 # ── Helper functions ─────────────────────────────────────────────────────────
+def remove_dataparallel_wrapper(state_dict):
+    """Remove 'module.' prefix from DataParallel saved models"""
+    new_state_dict = {}
+    for key, value in state_dict.items():
+        # Remove 'module.' prefix if present
+        if key.startswith('module.'):
+            new_key = key[7:]  # Remove 'module.' (7 characters)
+        else:
+            new_key = key
+        new_state_dict[new_key] = value
+    return new_state_dict
+
 @st.cache_resource
 def load_model(model_url, device):
     """Load the generator model from Hugging Face"""
@@ -84,14 +98,34 @@ def load_model(model_url, device):
     
     # Download weights from Hugging Face
     with st.spinner('Downloading model weights...'):
-        response = requests.get(model_url)
-        if response.status_code == 200:
-            state_dict = torch.load(BytesIO(response.content), map_location=device)
-            model.load_state_dict(state_dict)
-            model.eval()
-            return model
-        else:
-            st.error(f"Failed to download model from {model_url}")
+        try:
+            response = requests.get(model_url, timeout=30)
+            if response.status_code == 200:
+                # Load state dict with flexibility
+                state_dict = torch.load(
+                    BytesIO(response.content), 
+                    map_location=device
+                )
+                
+                # Remove DataParallel wrapper if present
+                state_dict = remove_dataparallel_wrapper(state_dict)
+                
+                # Try to load with strict=False to handle minor mismatches
+                missing_keys, unexpected_keys = model.load_state_dict(state_dict, strict=False)
+                
+                if missing_keys:
+                    st.warning(f"Missing keys: {missing_keys[:5]}..." if len(missing_keys) > 5 else f"Missing keys: {missing_keys}")
+                if unexpected_keys:
+                    st.warning(f"Unexpected keys: {unexpected_keys[:5]}..." if len(unexpected_keys) > 5 else f"Unexpected keys: {unexpected_keys}")
+                
+                model.eval()
+                st.success("✅ Model loaded successfully!")
+                return model
+            else:
+                st.error(f"Failed to download model. Status: {response.status_code}")
+                return None
+        except Exception as e:
+            st.error(f"Error loading model: {str(e)}")
             return None
 
 def preprocess_image(image, target_size=256):
@@ -187,14 +221,6 @@ with st.sidebar:
     """)
     
     st.markdown("---")
-    st.markdown("### 📊 Performance Metrics")
-    col1, col2 = st.columns(2)
-    with col1:
-        st.metric("SSIM", "0.72", "Structural Similarity")
-    with col2:
-        st.metric("PSNR", "18.5 dB", "Peak Signal-to-Noise")
-    
-    st.markdown("---")
     st.markdown("Made with ❤️ using Streamlit & PyTorch")
 
 # Main content area
@@ -206,7 +232,6 @@ st.info(f"🖥️ Running on: {'GPU' if torch.cuda.is_available() else 'CPU'}")
 
 # Model URLs
 G_MODEL_URL = "https://huggingface.co/aneelaBashir22f3414/pix2pix_doodle_to_real_image/resolve/main/p2p_G_ep50.pth"
-D_MODEL_URL = "https://huggingface.co/aneelaBashir22f3414/pix2pix_doodle_to_real_image/resolve/main/p2p_D_ep50.pth"
 
 # Load model
 model = load_model(G_MODEL_URL, device)
@@ -232,14 +257,6 @@ with col1:
             st.write(f"Original Size: {input_image.size}")
             st.write(f"Mode: {input_image.mode}")
             st.write("Will be resized to 256×256 for the model")
-    
-    # Example images
-    with st.expander("🎨 Try these examples"):
-        st.markdown("Upload a sketch similar to these for best results:")
-        st.markdown("- Face sketches (front-facing)")
-        st.markdown("- Anime character doodles")
-        st.markdown("- Simple object outlines")
-        st.markdown("- Black & white line drawings")
 
 # Output section
 with col2:
@@ -248,33 +265,47 @@ with col2:
     if uploaded_file is not None:
         if st.button("🚀 Generate Realistic Image", type="primary", use_container_width=True):
             with st.spinner("🧠 Processing your sketch... This may take a few seconds."):
-                # Preprocess
-                input_tensor = preprocess_image(input_image)
-                
-                # Generate
-                generated_tensor = generate_photo(model, input_tensor, device)
-                
-                # Convert to PIL
-                output_image = denormalize(generated_tensor)
-                
-                # Display
-                st.image(output_image, caption="AI-Generated Image", use_container_width=True)
-                
-                # Download button
-                buf = BytesIO()
-                output_image.save(buf, format="PNG")
-                byte_im = buf.getvalue()
-                
-                st.download_button(
-                    label="📥 Download Result",
-                    data=byte_im,
-                    file_name="generated_image.png",
-                    mime="image/png",
-                    use_container_width=True
-                )
-                
-                # Metrics for this specific generation (optional)
-                st.success("✨ Generation completed successfully!")
+                try:
+                    # Preprocess
+                    input_tensor = preprocess_image(input_image)
+                    
+                    # Generate
+                    generated_tensor = generate_photo(model, input_tensor, device)
+                    
+                    # Convert to PIL
+                    output_image = denormalize(generated_tensor)
+                    
+                    # Display
+                    st.image(output_image, caption="AI-Generated Image", use_container_width=True)
+                    
+                    # Download button
+                    buf = BytesIO()
+                    output_image.save(buf, format="PNG")
+                    byte_im = buf.getvalue()
+                    
+                    st.download_button(
+                        label="📥 Download Result",
+                        data=byte_im,
+                        file_name="generated_image.png",
+                        mime="image/png",
+                        use_container_width=True
+                    )
+                    
+                    st.success("✨ Generation completed successfully!")
+                    
+                    # Show comparison
+                    st.markdown("---")
+                    st.markdown("### 🔍 Before vs After")
+                    comp_col1, comp_col2 = st.columns(2)
+                    with comp_col1:
+                        st.markdown("**Original Sketch**")
+                        st.image(input_image, use_container_width=True)
+                    with comp_col2:
+                        st.markdown("**Generated Photo**")
+                        st.image(output_image, use_container_width=True)
+                        
+                except Exception as e:
+                    st.error(f"Error during generation: {str(e)}")
     else:
         st.info("👈 Upload a sketch to get started!")
         # Placeholder
@@ -282,27 +313,11 @@ with col2:
         placeholder[:] = [240, 240, 240]
         st.image(placeholder, caption="Your generated image will appear here", use_container_width=True)
 
-# Compare section (if both input and output are available)
-if uploaded_file is not None and 'output_image' in locals():
-    st.markdown("---")
-    st.markdown("### 🔍 Before vs After")
-    
-    col1, col2, col3 = st.columns([1, 0.2, 1])
-    with col1:
-        st.markdown("**Original Sketch**")
-        st.image(input_image, use_container_width=True)
-    with col2:
-        st.markdown("<h3 style='text-align: center; margin-top: 50%;'>→</h3>", unsafe_allow_html=True)
-    with col3:
-        st.markdown("**Generated Photo**")
-        st.image(output_image, use_container_width=True)
-
 # Footer
 st.markdown("---")
 st.markdown("""
 <div style='text-align: center; color: #666;'>
     <p>This model was trained on face sketches and anime-style drawings. 
     Results may vary depending on the complexity and style of your input sketch.</p>
-    <p>🔬 Model trained with Pix2Pix architecture using U-Net generator and PatchGAN discriminator</p>
 </div>
 """, unsafe_allow_html=True)
